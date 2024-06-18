@@ -1,9 +1,9 @@
+# Add GUI for creating BoundingBox for mesh(es)
+
 import bpy, bmesh, re
 from bpy.types import MeshVertices
 from mathutils import Vector, Matrix, Euler
 
-
-scene = bpy.context.scene
 vec_zero = Vector((0.0,0.0,0.0))
 vec_zero.freeze()
 vec_one = Vector((1.0,1.0,1.0))
@@ -261,7 +261,7 @@ class BBoxPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        bbox_props = scene.bbox_props
+        bbox_props = bpy.context.scene.bbox_props
         
         # Create bbox
         layout.operator(BBoxButton.bl_idname) # Button
