@@ -213,6 +213,20 @@ def get_sub_blocks(data):
 data = bpy.data
 # data.actions, data.brushes, data.collections, data.images, data.palettes, data.screens,
 # data.texts, data.workspaces, 
+
+def get_drivers_by_space(space):
+    drivers = []
+    for drv in space.drivers:
+        for var in drv.driver.variables:
+            for target in var.targets:
+                print(target.id, target.data_path)
+                if target.data_path == "":
+                    continue
+                if target.id is None:
+                    continue
+                drivers.append((target.id, target.data_path))
+    return drivers
+
 def get_ALL_drivers():
     drivers = []
     for groups in (data.armatures, data.cache_files, data.cameras,
@@ -224,13 +238,12 @@ def get_ALL_drivers():
                    data.sounds, data.speakers, data.textures, data.volumes,
                    data.worlds):
         for group in groups:
+            print(group)
+            if groups == data.materials:
+                if group.use_nodes and group.node_tree.animation_data:
+                    drivers.extend(get_drivers_by_space(group.node_tree.animation_data))
             if group.animation_data:
-                for drv in group.animation_data.drivers:
-                    for var in drv.driver.variables:
-                        for target in var.targets:
-                            if target.data_path == "":
-                                continue
-                            drivers.append((target.id, target.data_path))
+                drivers.extend(get_drivers_by_space(group.animation_data))
     drivers = remove_dupes(drivers)
     drivers.sort(key=drv_sort)
     return drivers
