@@ -167,16 +167,18 @@ def get_sub_blocks(data):
             break
     return blocks
 
-def get_drivers_by_space(fcurve):
+def get_drivers_by_space(fcurves):
     drivers = []
-    for var in fcurve.variables:
-        for target in var.targets:
-            print(target.id, target.data_path)
-            if target.data_path == "":
-                continue
-            if target.id is None:
-                continue
-            drivers.append((target.id, target.data_path))
+    for fcurve in fcurves:
+        if fcurve.driver:
+            for var in fcurve.driver.variables:
+                for target in var.targets:
+                    print(target.id, target.data_path)
+                    if target.data_path == "":
+                        continue
+                    if target.id is None:
+                        continue
+                    drivers.append((target.id, target.data_path))
     return drivers
 
 def get_ALL_drivers():
@@ -199,10 +201,10 @@ def get_ALL_drivers():
                 if group.use_nodes and group.node_tree.animation_data:
                     drivers.extend(get_drivers_by_space(group.node_tree.animation_data.drivers))
             if groups not in (data.actions,) and group.animation_data:
-                drivers.extend(get_drivers_by_space(group.animation_data))
+                drivers.extend(get_drivers_by_space(group.animation_data.drivers))
                 if group.animation_data.nla_tracks:
                     for track in group.animation_data.nla_tracks:
-                        for strip in tracks.strip:
+                        for strip in track.strips:
                             drivers.extend(get_drivers_by_space(strip.fcurves))
                             
     drivers = remove_dupes(drivers)
