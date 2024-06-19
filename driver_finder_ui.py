@@ -169,7 +169,6 @@ def get_sub_blocks(data):
 
 def get_drivers_by_space(space):
     drivers = []
-    data = bpy.data
     for drv in space.drivers:
         for var in drv.driver.variables:
             for target in var.targets:
@@ -183,6 +182,7 @@ def get_drivers_by_space(space):
 
 def get_ALL_drivers():
     drivers = []
+    data = bpy.data
     for groups in (data.actions, data.armatures, data.cache_files, data.cameras,
                    data.curves, data.fonts, data.grease_pencils, data.hair_curves,
                    data.lattices, data.libraries, data.lightprobes, data.lights,
@@ -201,6 +201,11 @@ def get_ALL_drivers():
                     drivers.extend(get_drivers_by_space(group.node_tree.animation_data))
             if groups not in (data.actions,) and group.animation_data:
                 drivers.extend(get_drivers_by_space(group.animation_data))
+                if group.animation_data.nla_tracks:
+                    for track in group.animation_data.nla_tracks:
+                        for strip in tracks.strip:
+                            drivers.extend(get_drivers_by_space(strip.fcurves))
+                            
     drivers = remove_dupes(drivers)
     drivers.sort(key=drv_sort)
     return drivers
