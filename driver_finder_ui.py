@@ -10,7 +10,7 @@ def is_parent_rec(obj, p, allow_self=False):
     #print(obj, type(obj))
     if allow_self and obj == p:
         return True
-    elif type(obj) not in (bpy.types.Armature,):
+    elif type(obj) not in (bpy.types.Armature, bpy.types.Key):
         if obj.parent is None:
             return False
         elif obj.parent == p:
@@ -248,7 +248,8 @@ def get_ALL_drivers():
     drivers.sort(key=drv_sort)
     return drivers
 
-hashed_blocks = {}
+cached_blocks = {}
+cached_drivers = []
 
 class OPERATOR_Dump_Drivers_ALL(bpy.types.Operator):
     """Tooltip"""
@@ -345,10 +346,10 @@ class OPERATOR_Dump_Drivers(bpy.types.Operator):
         print(res)
         return {'FINISHED'}
 
-class OPERATOR_Clear_hashed_blocks(bpy.types.Operator):
+class OPERATOR_Clear_cached_blocks(bpy.types.Operator):
     """Tooltip"""
-    bl_idname = "object.clear_hashed_blocks"
-    bl_label = "Reset this GUI data"
+    bl_idname = "object.clear_cached_blocks"
+    bl_label = "Update"
 
     @classmethod
     def poll(cls, context):
@@ -356,7 +357,8 @@ class OPERATOR_Clear_hashed_blocks(bpy.types.Operator):
         return True
 
     def execute(self, context):
-        hashed_blocks.clear() 
+        cached_blocks.clear() 
+        cached_drivers.clear()
         return {'FINISHED'}
 
 
@@ -395,7 +397,7 @@ class EasyRigChecker(bpy.types.Panel):
         layout = self.layout
         col_root = layout.column()
         row = col_root.row()
-        row.operator(OPERATOR_Clear_hashed_blocks.bl_idname)
+        row.operator(OPERATOR_Clear_cached_blocks.bl_idname)
         row = col_root.row()
         row.operator(OPERATOR_Dump_Drivers.bl_idname)
         row.operator(OPERATOR_Dump_Drivers_ALL.bl_idname)
@@ -403,11 +405,13 @@ class EasyRigChecker(bpy.types.Panel):
         col.row().label(text="-- Drivers --")
         #drivers = remove_dupes(drivers)
         #drivers.sort(key=drv_sort)
-        drivers = get_ALL_drivers()
+        global cached_drivers
+        if len(cached_drivers) == 0:
+            cached_drivers = get_ALL_drivers()
         curr_obj = ""
         box = None
         n = 1
-        for driver_name in drivers:
+        for driver_name in cached_drivers:
             if is_parent_rec(driver_name[0], obj, True) or is_parent_rec(driver_name[0], _obj, True):
                 if curr_obj != driver_name[0].name:
                     box = col.box()
@@ -416,9 +420,9 @@ class EasyRigChecker(bpy.types.Panel):
                 row = box.row()
                 key = "%i %s" % (n, driver_name[0].name+"  "+driver_name[1])
                 row.label(text=key)
-                if hashed_blocks.get(key) is None:
-                    hashed_blocks[key] = get_sub_blocks(driver_name[1])
-                res = get_prop_from_obj(n, row, driver_name[0], hashed_blocks[key])
+                if cached_blocks.get(key) is None:
+                    cached_blocks[key] = get_sub_blocks(driver_name[1])
+                res = get_prop_from_obj(n, row, driver_name[0], cached_blocks[key])
                 if res is not None:
                     box.row().label(text="    %s" % (res))
                 n += 1
@@ -427,14 +431,14 @@ class EasyRigChecker(bpy.types.Panel):
         col.row().label(text="-- END --")
         
 def register():
-    bpy.utils.register_class(OPERATOR_Clear_hashed_blocks)
+    bpy.utils.register_class(OPERATOR_Clear_cached_blocks)
     bpy.utils.register_class(OPERATOR_Dump_Drivers_ALL)
     bpy.utils.register_class(OPERATOR_Dump_Drivers)
     bpy.utils.register_class(EasyRigChecker)
 
 
 def unregister():
-    bpy.utils.unregister_class(OPERATOR_Clear_hashed_blocks)
+    bpy.utils.unregister_class(OPERATOR_Clear_cached_blocks)
     bpy.utils.unregister_class(OPERATOR_Dump_Drivers_ALL)
     bpy.utils.unregister_class(OPERATOR_Dump_Drivers)
     bpy.utils.unregister_class(EasyRigChecker)
