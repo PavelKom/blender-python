@@ -65,50 +65,6 @@ def find_drivers(sel):
             objs.append(obj)
     return objs
 
-'''
-Action.fcurves
-
-ActionGroup.channels
-
-AnimData.drivers
-    - Armature.animation_data
-    - CacheFile.animation_data
-    - Camera.animation_data
-    - Curve.animation_data
-    - Curves.animation_data
-    - FreestyleLineStyle.animation_data
-    GreasePencil.animation_data
-    - ID.animation_data_create
-    - Key.animation_data
-    - Lattice.animation_data
-    - Light.animation_data
-    - LightProbe.animation_data
-    - Mask.animation_data
-    Material.animation_data
-        + Object.data.materials
-    Mesh.animation_data
-    - MetaBall.animation_data
-    - MovieClip.animation_data
-    NodeTree.animation_data
-        + Material.node_tree
-        Texture.node_tree
-    Object.animation_data
-    ParticleSettings.animation_data
-        BlendData.particles
-    PointCloud.animation_data
-        BlendData.pointclouds
-    Scene.animation_data
-    Speaker.animation_data
-    Texture.animation_data
-        TextureSlot.texture
-    Volume.animation_data
-    World.animation_data
-
-
-NlaStrip.fcurves
-'''
-
-
 
 def get_driver_paths(obj):
     # Get all drivers (associated id object, path) from obj
@@ -210,12 +166,10 @@ def get_sub_blocks(data):
         if k > 20:
             break
     return blocks
-data = bpy.data
-# data.actions, data.brushes, data.collections, data.images, data.palettes, data.screens,
-# data.texts, data.workspaces, 
 
 def get_drivers_by_space(space):
     drivers = []
+    data = bpy.data
     for drv in space.drivers:
         for var in drv.driver.variables:
             for target in var.targets:
@@ -229,7 +183,7 @@ def get_drivers_by_space(space):
 
 def get_ALL_drivers():
     drivers = []
-    for groups in (data.armatures, data.cache_files, data.cameras,
+    for groups in (data.actions, data.armatures, data.cache_files, data.cameras,
                    data.curves, data.fonts, data.grease_pencils, data.hair_curves,
                    data.lattices, data.libraries, data.lightprobes, data.lights,
                    data.linestyles, data.masks, data.materials, data.meshes, data.metaballs,
@@ -238,11 +192,14 @@ def get_ALL_drivers():
                    data.sounds, data.speakers, data.textures, data.volumes,
                    data.worlds):
         for group in groups:
-            print(group)
-            if groups == data.materials:
+            if groups == data.actions:
+                drivers.extend(get_drivers_by_space(group.fcurves))
+                for gr in group.groups:
+                    drivers.extend(get_drivers_by_space(gr.channels))
+            elif groups == data.materials:
                 if group.use_nodes and group.node_tree.animation_data:
                     drivers.extend(get_drivers_by_space(group.node_tree.animation_data))
-            if group.animation_data:
+            if groups not in (data.actions,) and group.animation_data:
                 drivers.extend(get_drivers_by_space(group.animation_data))
     drivers = remove_dupes(drivers)
     drivers.sort(key=drv_sort)
