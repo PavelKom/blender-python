@@ -167,17 +167,16 @@ def get_sub_blocks(data):
             break
     return blocks
 
-def get_drivers_by_space(space):
+def get_drivers_by_space(fcurve):
     drivers = []
-    for drv in space.drivers:
-        for var in drv.driver.variables:
-            for target in var.targets:
-                print(target.id, target.data_path)
-                if target.data_path == "":
-                    continue
-                if target.id is None:
-                    continue
-                drivers.append((target.id, target.data_path))
+    for var in fcurve.variables:
+        for target in var.targets:
+            print(target.id, target.data_path)
+            if target.data_path == "":
+                continue
+            if target.id is None:
+                continue
+            drivers.append((target.id, target.data_path))
     return drivers
 
 def get_ALL_drivers():
@@ -198,7 +197,7 @@ def get_ALL_drivers():
                     drivers.extend(get_drivers_by_space(gr.channels))
             elif groups == data.materials:
                 if group.use_nodes and group.node_tree.animation_data:
-                    drivers.extend(get_drivers_by_space(group.node_tree.animation_data))
+                    drivers.extend(get_drivers_by_space(group.node_tree.animation_data.drivers))
             if groups not in (data.actions,) and group.animation_data:
                 drivers.extend(get_drivers_by_space(group.animation_data))
                 if group.animation_data.nla_tracks:
