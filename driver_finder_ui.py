@@ -215,7 +215,7 @@ def get_ALL_drivers():
             elif groups == data.materials:
                 if group.use_nodes and group.node_tree.animation_data:
                     drivers.extend(get_drivers_by_space(group.node_tree.animation_data.drivers))
-            if groups not in (data.actions,) and group.animation_data:
+            if groups not in (data.actions, data.fonts) and group.animation_data:
                 drivers.extend(get_drivers_by_space(group.animation_data.drivers))
                 if group.animation_data.nla_tracks:
                     for track in group.animation_data.nla_tracks:
@@ -415,12 +415,12 @@ class EasyRigChecker(bpy.types.Panel):
         row.operator(OPERATOR_Dump_Drivers.bl_idname)
         row.operator(OPERATOR_Dump_Drivers_ALL.bl_idname)
         col = col_root.box().column()
-        col.row().label(text="-- Drivers --")
-        #drivers = remove_dupes(drivers)
-        #drivers.sort(key=drv_sort)
         global cached_drivers
         if len(cached_drivers) == 0:
             cached_drivers = get_ALL_drivers()
+        col.row().label(text="-- Drivers (%i) --" % (len(cached_drivers)))
+        #drivers = remove_dupes(drivers)
+        #drivers.sort(key=drv_sort)
         curr_obj = ""
         box = None
         n = 1
@@ -455,8 +455,6 @@ class EasyRigChecker(bpy.types.Panel):
                 res = get_prop_from_obj(n, _box.row(), driver_name[0], cached_blocks[key])
                 if res is not None:
                     box.row().label(text="    %s" % (res))
-                elif only_broken:
-                    _box
                 n += 1
             
             
