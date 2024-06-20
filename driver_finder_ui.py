@@ -119,6 +119,18 @@ def get_obj(name):
             return obj
     return None
 
+def test_prop(obj, blocks):
+    try:
+        eval("obj" + "".join(blocks[:-1]) + (blocks[-1] if type(blocks[-1]) is str else "["+str(blocks[-1])+"]"))
+        return True
+    except:
+        return False
+
+def get_prop_type(obj, blocks):
+    if test_prop(obj, blocks):
+        return type(eval("obj" + "".join(blocks[:-1]) + (blocks[-1] if type(blocks[-1]) is str else "["+str(blocks[-1])+"]")))
+    else:
+        return None
 
 def get_prop_from_obj(index, layout, obj, blocks):
     # Def draw layout.prop for driver
@@ -173,12 +185,15 @@ def get_drivers_by_space(fcurves):
         if fcurve.driver:
             for var in fcurve.driver.variables:
                 for target in var.targets:
-                    print(target.id, target.data_path)
                     if target.data_path == "":
                         continue
                     if target.id is None:
                         continue
-                    drivers.append((target.id, target.data_path))
+                    if fcurve.data_path[0] == "[":
+                        d = repr(fcurve.id_data) + fcurve.data_path
+                    else:
+                        d = repr(fcurve.id_data) + "." + fcurve.data_path
+                    drivers.append((target.id, target.data_path, d))
     return drivers
 
 def get_ALL_drivers():
@@ -213,6 +228,36 @@ def get_ALL_drivers():
 
 cached_blocks = {}
 cached_drivers = []
+
+class DriverFinderUIPropertyGroup(bpy.types.PropertyGroup):
+    show_broken : bpy.props.BoolProperty(
+        name="Show broken",
+        default=True
+        )
+    show_valid : bpy.props.BoolProperty(
+        name="Show valid",
+        default=True
+        )
+    show_int : bpy.props.BoolProperty(
+        name="int",
+        default=True
+        )
+    show_float : bpy.props.BoolProperty(
+        name="float",
+        default=True
+        )
+    show_bool : bpy.props.BoolProperty(
+        name="bool",
+        default=True
+        )
+    show_str : bpy.props.BoolProperty(
+        name="str",
+        default=True
+        )
+    show_others : bpy.props.BoolProperty(
+        name="Others",
+        default=True
+        )
 
 class OPERATOR_Dump_Drivers_ALL(bpy.types.Operator):
     """Tooltip"""
@@ -326,7 +371,7 @@ class OPERATOR_Clear_cached_blocks(bpy.types.Operator):
 
 
 def drv_sort(e):
-    return e[0].name + "  " + e[1]
+    return e[0].name + "  " + e[1] + "  " + e[2]
 
 rig_id = "easy_rig_checker"
 
@@ -352,15 +397,20 @@ class EasyRigChecker(bpy.types.Panel):
         if _obj is None:
             _obj = context.active_object
         obj = _obj.data
-        
-        #drivers = []
-        #for o in find_drivers(get_all_child_obj(_obj)):
-        #    drivers.extend(get_driver_paths(o))
+        dfui_props = bpy.context.scene.dfui_props
         
         layout = self.layout
         col_root = layout.column()
         row = col_root.row()
         row.operator(OPERATOR_Clear_cached_blocks.bl_idname)
+        row.prop(dfui_props, "show_broken")
+        row.prop(dfui_props, "show_valid")
+        row = col_root.row()
+        row.prop(dfui_props, "show_int")
+        row.prop(dfui_props, "show_float")
+        row.prop(dfui_props, "show_bool")
+        row.prop(dfui_props, "show_str")
+        row.prop(dfui_props, "show_others")
         row = col_root.row()
         row.operator(OPERATOR_Dump_Drivers.bl_idname)
         row.operator(OPERATOR_Dump_Drivers_ALL.bl_idname)
@@ -380,27 +430,49 @@ class EasyRigChecker(bpy.types.Panel):
                     box = col.box()
                     curr_obj = driver_name[0].name
                     n = 1
-                row = box.row()
-                key = "%i %s" % (n, driver_name[0].name+"  "+driver_name[1])
-                row.label(text=key)
+                key = "%i %s %s %s" % (n, driver_name[0].name, driver_name[1], driver_name[2])
                 if cached_blocks.get(key) is None:
                     cached_blocks[key] = get_sub_blocks(driver_name[1])
-                res = get_prop_from_obj(n, row, driver_name[0], cached_blocks[key])
+                if test_prop(driver_name[0], cached_blocks[key]):
+                    if not dfui_props.show_valid:
+                        continue
+                elif not dfui_props.show_broken:
+                    continue
+                prop_type = get_prop_type(driver_name[0], cached_blocks[key])
+                if prop_type == int and not dfui_props.show_int:
+                    continue
+                elif prop_type == float and not dfui_props.show_float:
+                    continue
+                elif prop_type == bool and not dfui_props.show_bool:
+                    continue
+                elif prop_type == str and not dfui_props.show_str:
+                    continue
+                elif prop_type not in (int, float, bool, str) and not dfui_props.show_others:
+                    continue
+                _box = box.box()
+                _box.row().label(text="%i  %s" % (n, driver_name[2]))
+                _box.row().label(text="%s%s%s" % (driver_name[0].name, "" if driver_name[1][0] == "[" else ".", driver_name[1]))
+                res = get_prop_from_obj(n, _box.row(), driver_name[0], cached_blocks[key])
                 if res is not None:
                     box.row().label(text="    %s" % (res))
+                elif only_broken:
+                    _box
                 n += 1
             
             
         col.row().label(text="-- END --")
         
 def register():
+    bpy.utils.register_class(DriverFinderUIPropertyGroup)
     bpy.utils.register_class(OPERATOR_Clear_cached_blocks)
     bpy.utils.register_class(OPERATOR_Dump_Drivers_ALL)
     bpy.utils.register_class(OPERATOR_Dump_Drivers)
     bpy.utils.register_class(EasyRigChecker)
+    bpy.types.Scene.dfui_props = bpy.props.PointerProperty(type=DriverFinderUIPropertyGroup)
 
 
 def unregister():
+    bpy.utils.unregister_class(DriverFinderUIPropertyGroup)
     bpy.utils.unregister_class(OPERATOR_Clear_cached_blocks)
     bpy.utils.unregister_class(OPERATOR_Dump_Drivers_ALL)
     bpy.utils.unregister_class(OPERATOR_Dump_Drivers)
