@@ -321,6 +321,11 @@ class DriverFinderUIPropertyGroup(bpy.types.PropertyGroup):
         name="Bones",
         default=False
         )
+    # Misc
+    prop_mats : bpy.props.BoolProperty(
+        name="Materials",
+        default=False
+        )
 
 class OPERATOR_Dump_Drivers_ALL(bpy.types.Operator):
     """Tooltip"""
@@ -610,15 +615,19 @@ class UselessPropChecker(bpy.types.Panel):
         row.prop(dfui_props, "prop_data")
         row.prop(dfui_props, "prop_bones")
         row.prop(dfui_props, "prop_posebones")
+        row = col_root.row()
+        row.prop(dfui_props, "prop_mats")
         colls = []
         if dfui_props.prop_world:
-            colls.append(("Worlds", bpy.data.worlds))
+            colls.append(("Worlds:", bpy.data.worlds))
         if dfui_props.prop_scene:
             colls.append(("Scenes:", bpy.data.scenes))
         if dfui_props.prop_collections:
             colls.append(("Collections:", bpy.data.collections))
         if dfui_props.prop_objects:
             colls.append(("Objects:", bpy.data.objects))
+        if dfui_props.prop_mats:
+            colls.append(("Materials:", bpy.data.materials))
         if dfui_props.prop_data:
             objs = []
             for obj in bpy.data.objects:
