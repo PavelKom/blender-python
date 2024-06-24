@@ -120,15 +120,44 @@ def get_obj(name):
     return None
 
 def test_prop(obj, blocks):
+    val = ""
+    if type(blocks[-1]) is int:
+        val = "obj%s%s%s[%i]" %(
+            "".join(blocks[:-2]),
+            "" if blocks[-2][0] in ("[", ".") else ".",
+            blocks[-2],
+            blocks[-1]
+        )
+    else:
+        val = "obj%s%s%s" %(
+            "".join(blocks[:-1]),
+            "" if blocks[-1][0] in ("[", ".") else ".",
+            blocks[-1]
+        )
     try:
-        eval("obj" + "".join(blocks[:-1]) + (blocks[-1] if type(blocks[-1]) is str else "["+str(blocks[-1])+"]"))
+        eval(val)
         return True
-    except:
+    except Exception as e:
+        #print(obj, blocks, "\n",e, "\n", val)
         return False
 
 def get_prop_type(obj, blocks):
+    val = ""
+    if type(blocks[-1]) is int:
+        val = "obj%s%s%s[%i]" %(
+            "".join(blocks[:-2]),
+            "" if blocks[-2][0] in ("[", ".") else ".",
+            blocks[-2],
+            blocks[-1]
+        )
+    else:
+        val = "obj%s%s%s" %(
+            "".join(blocks[:-1]),
+            "" if blocks[-1][0] in ("[", ".") else ".",
+            blocks[-1]
+        )
     if test_prop(obj, blocks):
-        return type(eval("obj" + "".join(blocks[:-1]) + (blocks[-1] if type(blocks[-1]) is str else "["+str(blocks[-1])+"]")))
+        return type(eval(val))
     else:
         return None
 
@@ -193,7 +222,7 @@ def get_drivers_by_space(fcurves):
                         d = repr(fcurve.id_data) + fcurve.data_path
                     else:
                         d = repr(fcurve.id_data) + "." + fcurve.data_path
-                    drivers.append((target.id, target.data_path, d))
+                    drivers.append((target.id, target.data_path, d.replace("'",'"')))
     return drivers
 
 def get_ALL_drivers():
@@ -215,7 +244,7 @@ def get_ALL_drivers():
             elif groups == data.materials:
                 if group.use_nodes and group.node_tree.animation_data:
                     drivers.extend(get_drivers_by_space(group.node_tree.animation_data.drivers))
-            if groups not in (data.actions, data.fonts) and group.animation_data:
+            if groups not in (data.actions, data.fonts, data.libraries) and group.animation_data:
                 drivers.extend(get_drivers_by_space(group.animation_data.drivers))
                 if group.animation_data.nla_tracks:
                     for track in group.animation_data.nla_tracks:
@@ -230,6 +259,10 @@ cached_blocks = {}
 cached_drivers = []
 
 class DriverFinderUIPropertyGroup(bpy.types.PropertyGroup):
+    show_from_all : bpy.props.BoolProperty(
+        name="From ALL objects",
+        default=False
+        )
     show_broken : bpy.props.BoolProperty(
         name="Show broken",
         default=True
@@ -257,6 +290,36 @@ class DriverFinderUIPropertyGroup(bpy.types.PropertyGroup):
     show_others : bpy.props.BoolProperty(
         name="Others",
         default=True
+        )
+    # Globals
+    prop_scene : bpy.props.BoolProperty(
+        name="Scene",
+        default=False
+        )
+    prop_world : bpy.props.BoolProperty(
+        name="World",
+        default=False
+        )
+    prop_collections : bpy.props.BoolProperty(
+        name="Collections",
+        default=False
+        )
+    # Locals
+    prop_objects : bpy.props.BoolProperty(
+        name="Objects",
+        default=False
+        )
+    prop_data : bpy.props.BoolProperty(
+        name="Data",
+        default=False
+        )
+    prop_posebones : bpy.props.BoolProperty(
+        name="PoseBones",
+        default=False
+        )
+    prop_bones : bpy.props.BoolProperty(
+        name="Bones",
+        default=False
         )
 
 class OPERATOR_Dump_Drivers_ALL(bpy.types.Operator):
@@ -373,13 +436,11 @@ class OPERATOR_Clear_cached_blocks(bpy.types.Operator):
 def drv_sort(e):
     return e[0].name + "  " + e[1] + "  " + e[2]
 
-rig_id = "easy_rig_checker"
-
 class EasyRigChecker(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_label = "Easy RIG Checker"
-    bl_idname = "VIEW3D_PT_rig_layers_" + rig_id
+    bl_idname = "VIEW3D_PT_asy_rig_checker"
     bl_category = 'Item'
     
     @classmethod
@@ -403,6 +464,7 @@ class EasyRigChecker(bpy.types.Panel):
         col_root = layout.column()
         row = col_root.row()
         row.operator(OPERATOR_Clear_cached_blocks.bl_idname)
+        row.prop(dfui_props, "show_from_all")
         row.prop(dfui_props, "show_broken")
         row.prop(dfui_props, "show_valid")
         row = col_root.row()
@@ -425,40 +487,207 @@ class EasyRigChecker(bpy.types.Panel):
         box = None
         n = 1
         for driver_name in cached_drivers:
-            if is_parent_rec(driver_name[0], obj, True) or is_parent_rec(driver_name[0], _obj, True):
-                if curr_obj != driver_name[0].name:
-                    box = col.box()
-                    curr_obj = driver_name[0].name
-                    n = 1
-                key = "%i %s %s %s" % (n, driver_name[0].name, driver_name[1], driver_name[2])
-                if cached_blocks.get(key) is None:
-                    cached_blocks[key] = get_sub_blocks(driver_name[1])
-                if test_prop(driver_name[0], cached_blocks[key]):
-                    if not dfui_props.show_valid:
-                        continue
-                elif not dfui_props.show_broken:
+            if not dfui_props.show_from_all and not (is_parent_rec(driver_name[0], obj, True) or is_parent_rec(driver_name[0], _obj, True)):
+                continue
+            if curr_obj != driver_name[0].name:
+                box = col.box()
+                curr_obj = driver_name[0].name
+                n = 1
+            key = "%i %s %s %s" % (n, driver_name[0].name, driver_name[1], driver_name[2])
+            if cached_blocks.get(key) is None:
+                cached_blocks[key] = get_sub_blocks(driver_name[1])
+            if test_prop(driver_name[0], cached_blocks[key]):
+                if not dfui_props.show_valid:
                     continue
-                prop_type = get_prop_type(driver_name[0], cached_blocks[key])
-                if prop_type == int and not dfui_props.show_int:
-                    continue
-                elif prop_type == float and not dfui_props.show_float:
-                    continue
-                elif prop_type == bool and not dfui_props.show_bool:
-                    continue
-                elif prop_type == str and not dfui_props.show_str:
-                    continue
-                elif prop_type not in (int, float, bool, str) and not dfui_props.show_others:
-                    continue
-                _box = box.box()
-                _box.row().label(text="%i  %s" % (n, driver_name[2]))
-                _box.row().label(text="%s%s%s" % (driver_name[0].name, "" if driver_name[1][0] == "[" else ".", driver_name[1]))
-                res = get_prop_from_obj(n, _box.row(), driver_name[0], cached_blocks[key])
-                if res is not None:
-                    box.row().label(text="    %s" % (res))
-                n += 1
-            
-            
+            elif not dfui_props.show_broken:
+                continue
+            prop_type = get_prop_type(driver_name[0], cached_blocks[key])
+            if prop_type == int and not dfui_props.show_int:
+                continue
+            elif prop_type == float and not dfui_props.show_float:
+                continue
+            elif prop_type == bool and not dfui_props.show_bool:
+                continue
+            elif prop_type == str and not dfui_props.show_str:
+                continue
+            elif prop_type not in (int, float, bool, str) and not dfui_props.show_others:
+                continue
+            _box = box.box()
+            _box.row().label(text="%i  %s" % (n, driver_name[2]))
+            _box.row().label(text="%s%s%s" % (driver_name[0].name, "" if driver_name[1][0] == "[" else ".", driver_name[1]))
+            res = get_prop_from_obj(n, _box.row(), driver_name[0], cached_blocks[key])
+            if res is not None:
+                box.row().label(text="    %s" % (res))
+            n += 1
         col.row().label(text="-- END --")
+        
+
+def prop_is_useless(path):
+    global cached_drivers
+    if len(cached_drivers) == 0:
+        cached_drivers = get_ALL_drivers()
+    for driver in cached_drivers:
+        p1 = repr(driver[0])
+        if driver[1][0] != "[":
+            p1 += "."
+        p1 += driver[1]
+        p1 = p1.replace("'",'"')
+        if p1 == path or driver[2] == path:
+            return False
+    return True
+
+
+    
+def get_DEL_items(self, context):
+    items = (
+        ("PROP","Property","One Prop"),
+        ("OBJECT","Object","All Props on Object"),
+        #("BONES","Bones","Props from all Bones"),
+        #("POSEBONES","PoseBones","Props from all PoseBones"),
+        #("BONE","Bone","Props from simple Bone"),
+        #("POSEBONE","PoseBone","Props from simple PoseBone"),
+        #("COLLECTION","Collection","Collection of Objects"),
+    )
+    return items
+    
+class DELETE_UselessProp(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "object.delete_useless_property"
+    bl_label = "DELETE"
+    
+    #id_obj : bpy.props.PointerProperty()
+    obj : bpy.props.StringProperty()
+    prop : bpy.props.StringProperty()
+    group : bpy.props.EnumProperty(items=get_DEL_items)
+    
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        obj = eval(self.obj)
+        match self.group:
+            case 'PROP':
+                eval(self.obj+'.pop("'+self.prop+'")')
+            case 'OBJECT':
+                props = [*obj.keys()]
+                for prop in props:
+                    path = (repr(obj)+"['"+prop+"']").replace("'",'"')
+                    if prop_is_useless(path):
+                        eval(self.obj+'.pop("'+prop+'")')
+        return {'FINISHED'}
+
+class UselessPropChecker(bpy.types.Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_label = "Useless Prop Checker"
+    bl_idname = "VIEW3D_PT_useless_prop_checker"
+    bl_category = 'Item'
+    
+    buf_num : bpy.props.IntProperty()
+    
+    @classmethod
+    def poll(self, context):
+        try:
+            #sel = list(set([get_armature(o) for o in bpy.context.selected_objects]))
+            sel = bpy.context.selected_objects
+            return len(sel) > 0 and sel[0] is not None
+        except (AttributeError, KeyError, TypeError):
+            return False
+
+    def draw(self, context):
+        sel = bpy.context.selected_objects
+        dfui_props = bpy.context.scene.dfui_props
+        layout = self.layout
+        col_root = layout.column()
+        row = col_root.row()
+        row.operator(OPERATOR_Clear_cached_blocks.bl_idname)
+        row.prop(dfui_props, "prop_world")
+        row.prop(dfui_props, "prop_scene")
+        row.prop(dfui_props, "prop_collections")
+        row = col_root.row()
+        row.prop(dfui_props, "prop_objects")
+        row.prop(dfui_props, "prop_data")
+        row.prop(dfui_props, "prop_bones")
+        row.prop(dfui_props, "prop_posebones")
+        colls = []
+        if dfui_props.prop_world:
+            colls.append(("Worlds", bpy.data.worlds))
+        if dfui_props.prop_scene:
+            colls.append(("Scenes:", bpy.data.scenes))
+        if dfui_props.prop_collections:
+            colls.append(("Collections:", bpy.data.collections))
+        if dfui_props.prop_objects:
+            colls.append(("Objects:", bpy.data.objects))
+        if dfui_props.prop_data:
+            objs = []
+            for obj in bpy.data.objects:
+                objs.append(obj.data)
+            colls.append(("Objects Data:", objs))
+        if dfui_props.prop_bones:
+            objs = []
+            for obj in bpy.data.armatures:
+                for bone in obj.bones:
+                    objs.append(bone)
+            colls.append(("Bones:", objs))
+        if dfui_props.prop_posebones:
+            objs = []
+            for obj in bpy.data.objects:
+                if obj.type != 'ARMATURE':
+                    continue
+                for bone in obj.pose.bones:
+                    objs.append(bone)
+            colls.append(("Bones:", objs))
+        
+        main_row = col_root.row()
+        buf_num = 0
+        for lbl, coll in colls:
+            c_box = None
+            for obj in coll:
+                o_box = None
+                _wbox = None
+                for prop in obj.keys():
+                    path = (repr(obj)+"['"+prop+"']").replace("'",'"')
+                    if prop_is_useless(path):
+                        if c_box is None:
+                            c_box = col_root.box()
+                            c_box.label(text=lbl)
+                        if o_box is None:
+                            o_box = c_box.box()
+                            o_row = o_box.row()
+                            splitter = o_row.split(factor=0.8)
+                            splitter.label(text=obj.name)
+                            _op = splitter.operator(DELETE_UselessProp.bl_idname)
+                            _op.obj = repr(obj)
+                            _op.group = 'OBJECT'
+                        if _wbox is None:
+                            _wbox = o_box.box()
+                        _wrow = _wbox.row()
+                        splitter = _wbox.split(factor=0.8)
+                        splitter.label(text=path)
+                        op = splitter.operator(DELETE_UselessProp.bl_idname)
+                        op.obj = repr(obj)
+                        op.prop = prop
+                        op.group = 'PROP'
+                        buf_num += 1
+        main_row.label(text="Current useless props: %i" % (buf_num))
+            
+        '''
+        if dfui_props.prop_world:
+            wwbox = col_root.box()
+            wwbox.label(text="Worlds:")
+            for world in bpy.data.worlds:
+                wbox = wwbox.box()
+                wbox.label(text=world.name)
+                _wbox = None
+                for prop in world.keys():
+                    path = (repr(world)+"['"+prop+"']").replace("'",'"')
+                    if prop_is_useless(path):
+                        if _wbox is None:
+                            _wbox = wbox.box()
+                        _wbox.label(text=path)
+        '''
+        
         
 def register():
     bpy.utils.register_class(DriverFinderUIPropertyGroup)
@@ -466,6 +695,8 @@ def register():
     bpy.utils.register_class(OPERATOR_Dump_Drivers_ALL)
     bpy.utils.register_class(OPERATOR_Dump_Drivers)
     bpy.utils.register_class(EasyRigChecker)
+    bpy.utils.register_class(UselessPropChecker)
+    bpy.utils.register_class(DELETE_UselessProp)
     bpy.types.Scene.dfui_props = bpy.props.PointerProperty(type=DriverFinderUIPropertyGroup)
 
 
@@ -475,6 +706,8 @@ def unregister():
     bpy.utils.unregister_class(OPERATOR_Dump_Drivers_ALL)
     bpy.utils.unregister_class(OPERATOR_Dump_Drivers)
     bpy.utils.unregister_class(EasyRigChecker)
+    bpy.utils.unregister_class(UselessPropChecker)
+    bpy.utils.unregister_class(DELETE_UselessProp)
 
 
 
